@@ -1,0 +1,135 @@
+{:token ; enter your discord token with ""
+ :admin-id ; enter your discord id with ""
+ :score-channel ; enter the score channel number without quotes
+ :daily-channel ; enter the daily channel number without quotes
+ :timezone ; enter your timezone with ""
+ :member-role ; enter the role id for server members, no ""
+ :todo-channel ; enter todo channel id
+ :playing "polishing her guitar!"
+ :responses ["Your mom gay" "Stop being an incel" "Kill yourself... NOW!!" "Why haven't you killed yourself yet?" "Commit 4 CGPA"]
+ :affirm ["Yessir" "Okay" "On it!" "Roger!"]
+ :shrug ["shrug"]
+ :say ["say" "bolo"]
+ :possible? ["Yes" "No" "Maybe" "Check textbook for detailed explanation"]
+ :search ["search" "google"]
+ :todo ["todo" "do"]
+ :fun-things-are-fun ["fun"]
+ :will ["will"]
+ :who ["who"]
+ :smug ["smug"]
+ :uwu ["UwU" "uwu"]
+ :owo ["OwO" "owo"]
+ :fun ["https://tenor.com/view/air-guitar-kon-anime-yui-hirasawa-gif-19100332"
+       "https://tenor.com/view/yui-hirasawa-kon-yui-meme-yui-gif-anime-gif-15109600"
+       "https://tenor.com/view/anime-found-you-kon-yui-gif-21221531"]
+ :disconnect ["disconnect" "disconnect!" "sleep" "sleep!"]
+ :revoke ["revoke" "dishonor" "un-ghot"]
+ :grant ["grant" "honor" "en-ghot"]
+ :coins ["kudos" "thank"]
+ :daily ["daily"]
+ :meme ["meme" "joke" "funny" "fun" "kek"]
+ :memes ["https://i.kym-cdn.com/photos/images/newsfeed/001/323/114/d3c.jpg"
+         "https://i.kym-cdn.com/photos/images/newsfeed/002/315/996/303.jpg"
+         "https://i.kym-cdn.com/photos/images/original/000/874/830/3eb.gif"
+         "https://i.kym-cdn.com/photos/images/newsfeed/002/261/779/398.gif"
+         "https://i.kym-cdn.com/photos/images/newsfeed/002/259/785/727.jpg"
+         "https://i.kym-cdn.com/photos/images/newsfeed/001/019/062/944.png"
+         "https://i.kym-cdn.com/photos/images/newsfeed/001/014/990/7ca.png"
+         "https://i.kym-cdn.com/photos/images/newsfeed/000/929/090/949.jpg"
+         "https://i.kym-cdn.com/photos/images/newsfeed/000/800/859/b40.jpg"
+         "https://i.kym-cdn.com/photos/images/newsfeed/000/757/974/47b.gif"
+         "https://i.kym-cdn.com/photos/images/newsfeed/000/771/699/05c"
+         "https://i.kym-cdn.com/photos/images/newsfeed/001/005/753/59a.jpg"
+         "https://i.redd.it/a2i49dcr9joz.jpg"
+         "https://i.redd.it/pofbohwbqnq71.png"
+         "https://i.redd.it/r4w51rx7jy151.jpg"
+         "https://i.redd.it/53xd8yxg6i061.jpg"
+         "https://i.redd.it/cil6pbfyrs351.jpg"
+         "https://i.redd.it/t169kmmi5dg51.jpg"
+         "https://i.redd.it/kcs3ldid4m551.png"
+         "https://i.redd.it/zos89qchtl161.jpg"
+         "https://preview.redd.it/g8l7s0m03h861.gif"
+         "https://loginportal.funnyjunk.com/pictures/Nearly+died+of+a+startle_6b2a13_8072825.jpg"]
+ :add ["add" "give"]
+ :remove ["remove"]
+ :verify ["verify"]
+ :role-1 ; role id without quotes
+ :role-2 ; role id without quotes
+ :role-3 ; role id without quotes
+ :register ["register"]
+ :score ["score"]
+ :roll ["roll" "dice" "die"]
+ :cry ["cry"]
+ :nod ["nod"]
+ :think ["think"]
+ :cry-gif ["https://tenor.com/view/cry-k-on-yui-hirasawa-raining-wet-gif-16521935"
+           "https://tenor.com/view/yui-yui-hirasawa-crying-tears-kon-gif-21743847"
+           "https://tenor.com/view/stop-imstop-im-crying-gif-18411537"]
+ :pain ["pain" "hurt"]
+ :predict ["predict" "Predict" "PREDICT" "chance" "Chance" "CHANCE"]
+ :edit ["edit" "change"]
+ :delete ["delete" "purge"]
+ :help ["help" "Help" "HELP"]
+ :repl ["repl" "Repl" "REPL" "run" "Run" "RUN" "eval" "Eval" "EVAL"]
+ :kill ["kill" "Kill" "KILL"]
+ :laugh ["laugh" "Laugh" "LAUGH"]
+ :kill-methods ["Drowns" "Stabs" "Hangs" "Burns" "Beheads"]
+ :privacy ["privacy" "Privacy" "PRIVACY"]
+ :pin ["pin" "PIN" "Pin"]
+ :eat ["eat" "Eat" "EAT"]
+ :drink ["drink" "Drink" "DRINK" "slurp" "sip"]
+ :names ["Yui" "yui" "yuu" "Yuu" "YUI" "YUU"]
+ :hello ["hi" "Hi" "hello" "Hello" "HELLO" "HI"]
+ :bye ["bye" "Bye" "BYE" "goodbye" "Goodbye" "GOODBYE"]
+ :say-bye ["Bye" "Goodbye" "Sayonara"]
+ :say-hi ["Hi" "Hello" "Hey"]
+ :privacy-string "We don't store any data except for coins points."
+ :help-string
+ "```lisp
+┌────────────────────┐
+│                    │
+│▄▖ ▗▄       █       │
+│▐▙ ▟▌       ▀       │
+│ █▄█ ▐▌ ▐▌ ██       │
+│ ▝█▘ ▐▌ ▐▌  █       │
+│  █  ▐▌ ▐▌  █       │
+│  █  ▐▙▄█▌▗▄█▄▖  █  │
+│  ▀   ▀▀▝▘▝▀▀▀▘  ▀  │
+│                    │
+│                    │
+└────────────────────┘
+Commands:
+ Mod commands:
+  pin
+  grant
+  edit
+  revoke
+  todo
+  repl
+  sleep
+ General commands:
+  help
+  kill
+  say
+  shrug
+  will
+  predict
+  roll
+  eat
+  drink
+  hi
+  nod
+  think
+  cry
+  bye
+  register
+  score
+  add
+  thank
+  pain
+  meme
+  uwu
+  smug
+
+ Written in Clojure by Sarthak Shah
+```"}

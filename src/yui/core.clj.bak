@@ -1,0 +1,210 @@
+(ns yui.core
+  (:require [clojure.edn :as edn]
+            [clojure.string :as s]
+            [clj-time.core :as t]
+            [clojure.core.async :refer [chan close!]]
+            [discljord.messaging :as m]
+            [discljord.connections :as c]
+            [discljord.formatting :refer [mention-user user-mention]]
+            [discljord.events :refer [message-pump!]]
+            ;; experimental feature!!!
+            [clj-http.client :as client])
+  (:gen-class))
+
+(def car first) (def cdr next)
+(def state (atom nil))
+(def bot-id (atom nil))
+(def config (edn/read-string (slurp "config.edn")))
+
+(defn belongs [elem arr]
+  (some #(= elem %) arr))
+
+(defn tokenize [content]
+  (s/split content #"\s+"))
+
+(defn detokenize [content]
+  (s/join " " content))
+
+(defmulti handle-event (fn [type _data] type))
+
+(defmacro prompt [ch-id content]
+  `(m/create-message! (:rest @state) ~ch-id :content ~content))
+
+(defmacro cond-action
+  "Takes a key to access in config-file and code to execute if command belongs."
+  [command config-file & clauses]
+    (when clauses
+      (list 'if `(belongs ~command ((keyword (str ~(first clauses))) ~config-file))
+            (if (next clauses)
+                (second clauses)
+                (throw (IllegalArgumentException.
+                         "cond requires an even number of forms")))
+            `(cond-action ~command ~config-file ~@(next (next clauses))))))
+
+(load "functions")
+
+(defmethod handle-event :message-create
+  [_ {:keys [channel-id author mentions content guild-id referenced-message member] :as _data}]
+  (when (some #{@bot-id} (map :id mentions))
+    (m/create-message! (:rest @state) channel-id :content (random-response author)))
+  (when (and (not (:bot author))
+             (< 2 (count content))
+             (belongs (subs content 0 2) ["hi" "Hi" "he" "He"]))
+    (let [mess (cdr (tokenize content))]
+      (if (belongs (subs (car mess) 0 3) (:names config))
+        (say-hi channel-id author))))
+  (when (and (not (:bot author))
+             (< 2 (count content))
+             (some #(= (subs content 0 3) %) (:names config))) ;; checks if bot was mentioned
+    (let [mess (cdr (tokenize content))
+          com (car mess)]
+      (if (not (car mess)) (prompt channel-id "Wut.")
+        (cond
+          (belongs com (:names config)) (prompt channel-id (rand-nth (:fun config)))
+          (belongs com (:hello config)) (say-hi channel-id author)
+          (belongs com (:bye config)) (say-bye channel-id author)
+          (belongs com (:todo config))  (if (mod? (:id author))
+                                          (add-todo channel-id (s/join " " (cdr mess))) (not-a-mod channel-id))
+          (belongs com (:say config)) (say-x channel-id (s/join " " (cdr mess)))
+          (belongs com (:search config)) (yui-search channel-id (s/join "+" (cdr mess)))
+          (belongs com (:disconnect config)) (if (mod? (:id author)) (do
+                                                                       (prompt channel-id (affirm))
+                                                                       (prompt channel-id "https://tenor.com/view/yui-x-azusa-yui-azusa-azunyan-anime-gif-21336402")
+                                                                       ;; doesn't wait for some reason
+                                                                       (goodbye channel-id))
+                                               (not-a-mod channel-id))
+          (belongs com (:fuck config)) (if (mod? (:id author)) (do
+                                                                 (prompt channel-id (affirm)))
+                                         (fuck-you channel-id))
+          (belongs com (:pin config)) (pin-message channel-id (:id referenced-message))
+          (belongs com (:edit config)) (if (mod? (:id author)) (do
+                                                                 (prompt channel-id (affirm))
+                                                                 (edit-call channel-id (:id referenced-message)))
+                                         (not-a-mod channel-id))
+          (belongs com (:delete config)) (if (mod? (:id author)) (do
+                                                                   (prompt channel-id (affirm))
+                                                                   (delete-message channel-id (:id referenced-message)))
+                                           (not-a-mod channel-id))
+          (belongs com (:revoke config)) (if (mod? (:id author)) (do
+                                                                   (prompt channel-id (affirm))
+                                                                   (revoke-membership channel-id guild-id (:id (car mentions))))
+                                           (not-a-mod channel-id))
+          (belongs com (:grant config)) (if (mod? (:id author)) (do
+                                                                  (prompt channel-id (affirm))
+                                                                  (grant-membership channel-id guild-id (car mentions)))
+                                          (not-a-mod channel-id))
+          (belongs com (:repl config)) (if (mod? (:id author)) (do
+                                                                 (prompt channel-id (affirm))
+                                                                 (live-repl channel-id (cdr mess))))
+          (belongs com (:daily config)) (daily channel-id author)
+          (belongs com (:register config)) (register channel-id author)
+          (belongs com (:kudos config)) (kudos channel-id author (car mentions))
+          (belongs com (:kill config)) (kill-person channel-id (car mentions))
+          (belongs com (:score config)) (user-score channel-id (if (car mentions) (car mentions) author))
+          (belongs com (:help config)) (say-help channel-id)
+          (belongs com (:play config)) (command-audio channel-id com)
+          (belongs com (:privacy config)) (dm-privacy channel-id author)
+          (belongs com (:roll config)) (roll channel-id)
+          (belongs com (:ghot config)) (ghot channel-id)
+          (belongs com (:pain config)) (pain channel-id)
+          (belongs com (:predict config)) (predict channel-id)
+          (belongs com (:cry config)) (prompt channel-id (rand-nth (:cry-gif config)))
+          (belongs com ["fun"]) (prompt channel-id "https://i.kym-cdn.com/photos/images/newsfeed/001/360/233/ee2.jpg")
+          (belongs com (:meme config)) (prompt channel-id (rand-nth (:memes config)))
+          (belongs com (:stroke config)) (prompt channel-id "https://tenor.com/view/yui-kon-guitar-guitar-player-fast-gif-24284075")
+          (belongs com ["will"]) (if (= (car (cdr mess))
+                                        "you") (prompt channel-id "No, I won't."))
+          (belongs com ["who"]) (if (= (subs (car (cdr mess)) 0 5)
+                                       "asked")
+                                  (prompt channel-id "https://tenor.com/view/yui-kon-who-asked-gif-23363342")
+                                  (prompt channel-id "Me."))
+          (belongs com (:nod config)) (prompt channel-id "https://tenor.com/view/anime-yui-yui-hirasawa-anime-rhythm-anime-music-gif-18534548")
+          (belongs com (:think config)) (prompt channel-id "https://tenor.com/view/yui-yui-hirasawa-anime-anime-girl-anime-mad-gif-18254321")
+          (belongs com (:eat config)) (prompt channel-id "nom nom nom\nhttps://tenor.com/view/anime-eat-burger-yui-k-on-gif-20746611")
+          (belongs com (:drink config)) (prompt channel-id "schlop schlop schlop")
+          (belongs com (:laugh config)) (prompt channel-id "https://tenor.com/view/k-on-yui-hirasawa-laughing-anime-gif-16038492")
+          (belongs com (:verify config)) (if (belongs (str (:member-role config)) (:roles member))
+                                           (case (str (check-score author 5))
+                                             "1" (prompt channel-id "Score too low!")
+                                             "0" (prompt channel-id "Not registered!")
+                                             "2"
+                                             (grant-membership channel-id guild-id (car mentions))
+                                             (prompt channel-id "I HAVE BROKEN!!!!")))
+          (belongs com (:add config)) (if (belongs (str (:member-role config)) (:roles member))
+                                        (if (not (or (belongs (str (:hyd-role config)) (:roles member))
+                                                     (belongs (str (:goa-role config)) (:roles member))
+                                                     (belongs (str (:pee-role config)) (:roles member))))
+                                          (let [role (subs (last mess) 0 3)]
+                                            (cond
+                                              (re-find #"(?i)hyd" role)
+                                              (grant-role channel-id guild-id author (:hyd-role config) "Hyderabad")
+                                              (re-find #"(?i)goa" role)
+                                              (grant-role channel-id guild-id author (:goa-role config) "Goa")
+                                              (re-find #"(?i)pil" role)
+                                              (grant-role channel-id guild-id author (:pee-role config) "Pilani")
+                                              :else
+                                              (prompt channel-id "Role not found, baka!")))
+                                          (prompt channel-id "You already belong to a campus!"))
+                                        (prompt channel-id "You are not a ghot!"))
+          (belongs com (:remove config)) (if (or (belongs (str (:hyd-role config)) (:roles member))
+                                                 (belongs (str (:goa-role config)) (:roles member))
+                                                 (belongs (str (:pee-role config)) (:roles member)))
+                                           (let [role (subs (last mess) 0 3)]
+                                             (cond
+                                               (re-find #"(?i)hyd" role)
+                                               (remove-role channel-id guild-id author (:hyd-role config) "Hyderabad")
+                                               (re-find #"(?i)goa" role)
+                                               (remove-role channel-id guild-id author (:goa-role config) "Goa")
+                                               (re-find #"(?i)pil" role)
+                                               (remove-role channel-id guild-id author (:pee-role config) "Pilani")
+                                               :else
+                                               (prompt channel-id "Role not found, baka!")))
+                                           (prompt channel-id "You do not belong to any campus!"))
+          (re-find #"(?i)uwu" com) (prompt channel-id "OwO")
+          (re-find #"(?i)owo" com) (prompt channel-id "UwU")
+          :else (say-error channel-id com))))))
+
+(defmethod handle-event :ready
+  [_ _]
+  (c/status-update! (:gateway @state) :activity (c/create-activity :name (:playing config))))
+
+(defmethod handle-event :default [_ _])
+
+(defn start-bot! [token & intents]
+  (let [event-channel (chan 100)
+        gateway-connection (c/connect-bot! token event-channel :intents (set intents))
+        rest-connection (m/start-connection! token)]
+    {:events  event-channel
+     :gateway gateway-connection
+     :rest    rest-connection}))
+
+(defn stop-bot! [{:keys [rest gateway events] :as _state}]
+  (m/stop-connection! rest)
+  (c/disconnect-bot! gateway)
+  (close! events)
+  (println "Exited successfuly!"))
+
+(defn set-interval [callback ms]
+  (future (while true (do (Thread/sleep ms) (callback)))))
+
+(def cnt (atom 0))
+
+(defn update-alive-message []
+  (m/edit-message! (:rest @state)
+                           947518374294999101
+                           947536502215311370
+                           :content
+                   (str "Alive at "
+                        (reset! cnt (mod (inc @cnt) 6))
+                        "0 seconds")))
+
+(if (:replit? config)
+(def job (set-interval #(update-alive-message) 30000)))
+
+(defn -main [& args]
+  (reset! state (start-bot! (:token config) :guild-messages))
+  (reset! bot-id (:id @(m/get-current-user! (:rest @state))))
+  (try
+    (message-pump! (:events @state) handle-event)
+    (finally (stop-bot! @state))))
+
