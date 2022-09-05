@@ -10,12 +10,13 @@ The second option has to be a command name.
 Command name list can be accessed via yui help.
 
 * Notes
-- is-mod can only check for one person's id. Moderator role checking is not yet added
+- is-mod can only check for one person's id. Moderator role checking is not yet added, but is trivial you to implement.
 - since yui is meant to be run from heroku, files aren't used for dailies/coins. due to this, the process can take several seconds, as it makes use of discord channels to store these values
 - make yui say 1 1 in the score channel and 1 1 in the daily channel and pin the message. Yui will now use this message to keep track of the score. I highly recommend using a separate server to store these messages. You can edit out the 1 1s later
-- yui search is still buggy, it might return "From ," as the result if duckduckgo can't find a quicksearch result
+- the currency system is currently disabled
 
 * Running
+Fill in the required details in config.edn, src/yui/functions.clj and src/yui/core.clj
 #+BEGIN_SRC
 lein run
 #+END_SRC
