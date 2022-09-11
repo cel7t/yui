@@ -224,7 +224,17 @@
         (register ch-id user)
         (give-kudos ch-id n user)))))
 
-
+(defn caption [ch-id file ctext]
+  (clojure.java.io/copy
+    (:body (client/get (str (:url file)) {:as :stream}))
+    (java.io.File. "/tmp/img"))
+  (prompt ch-id "Processing...")
+  (let [width (Integer/parseInt (:out (apply shell/sh (tokenize "identify -format %w /tmp/img"))))
+        fmt (s/lower-case (:out (apply shell/sh (tokenize "identify -format %m /tmp/img"))))]
+    (apply shell/sh (concat (tokenize (str "bash -c convert /tmp/img -background none -font 'Upright' -fill white -stroke black -strokewidth " (int (/ width 200)) " -size " width "x" (int (/ width 2)) " -gravity center"))
+                            (list (str "caption:" ctext))
+                            (tokenize (str "-composite /tmp/img." fmt))))
+    (m/create-message! (:rest @state) ch-id :file (java.io.File. (str "/tmp/img." fmt)))))
 
 (defn daily [ch-id author]
   ;; check redeemed list

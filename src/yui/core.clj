@@ -47,7 +47,7 @@
 (load "functions")
 
 (defmethod handle-event :message-create
-  [_ {:keys [channel-id author mentions content guild-id referenced-message member] :as _data}]
+  [_ {:keys [channel-id author mentions content guild-id referenced-message member attachments] :as _data}]
   (when (and (not (:bot author))
              (some #{@bot-id} (map :id mentions)))
     (m/create-message! (:rest @state) channel-id :content (random-response author)))
@@ -118,6 +118,8 @@
                      (kudos channel-id author (car mentions))
                      :kill
                      (kill-person channel-id (car mentions))
+                     :caption
+                     (caption channel-id (car attachments) (s/join " " (cdr mess)))
                      :score
                      (user-score channel-id (if (car mentions) (car mentions) author))
                      :help
@@ -156,8 +158,6 @@
                      (prompt channel-id (rand-nth (:memes config)))
                      :smug
                      (prompt channel-id "https://tenor.com/view/lenny-face-kon-yui-yui-hirasawa-anime-gif-21814399")
-                     :stroke
-                     (prompt channel-id "https://tenor.com/view/yui-kon-guitar-guitar-player-fast-gif-24284075")
                      :shrug
                      (prompt channel-id "https://i.redd.it/8ahxkbdcwn251.png")
                      :will

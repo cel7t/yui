@@ -10,11 +10,11 @@
  :possible? ["Yes" "No" "Maybe" "Check textbook for detailed explanation"]
  :search ["search" "google"]
  :todo ["todo" "do"]
- :todo-channel 947376783253200968
- :stroke ["fap" "stroke"]
+ :todo-channel ; todo channel
  :fun-things-are-fun ["fun"]
  :will ["will"]
  :who ["who"]
+ :caption ["image" "caption"]
  :smug ["smug"]
  :uwu ["UwU" "uwu"]
  :owo ["OwO" "owo"]
@@ -112,6 +112,7 @@ Commands:
  eat
  drink
  hi
+ caption
  sleep
 
  Written in Clojure by Average
