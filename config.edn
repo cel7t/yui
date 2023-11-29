@@ -1,32 +1,39 @@
-{:token "" ; your token here
+{:token ; discord token
+ :admin-id "" ; id of the admin
  :playing "polishing her guitar!"
- :replit? false
- :member-role ; the membership role
- :version "5th May Summer PC Steamy Hot Biryani Edition"
- :responses [] ; enter responses to being pinged
+ :play ["play"]
+ :replit? false ; legacy, to be removed
+ :member-role ; role id for membership
+ :version "29th December Git Edition"
+ :responses ["Stop bothering me >:("]
  :affirm ["Yessir" "Okay" "On it!" "Roger!"]
  :shrug ["shrug"]
- :say ["say"]
- :possible? ["Yes" "No" "Maybe" "Check textbook for detailed explanation"]
+ :say ["say" "tell"]
+ :fuwa ["fuwa"]
+ :possible? ["Yes" "No" "Maybe" "Check the textbook for  detailed explanation"]
+ :remind ["reminder" "remind"]
  :search ["search" "google"]
- :todo ["todo" "do"]
- :todo-channel ; todo channel
+ :man ["man" "manual"]
+ :todo ["todo"]
+ :todo-channel ; enter the id of the channel where you'd like to get TODO messages
+ :debt ["debt" "owe" "iou"]
+ :settle ["settle" "paid"]
+ :balance ["balance" "bal"]
  :fun-things-are-fun ["fun"]
  :will ["will"]
  :who ["who"]
  :caption ["image" "caption"]
+ :selfie ["selfie"]
  :smug ["smug"]
  :uwu ["UwU" "uwu"]
  :owo ["OwO" "owo"]
+ :gif ["random" "gif"]
  :fun ["https://tenor.com/view/air-guitar-kon-anime-yui-hirasawa-gif-19100332"
        "https://tenor.com/view/yui-hirasawa-kon-yui-meme-yui-gif-anime-gif-15109600"
        "https://tenor.com/view/anime-found-you-kon-yui-gif-21221531"]
  :disconnect ["disconnect" "disconnect!" "sleep" "sleep!"]
- :revoke ["revoke"]
- :grant ["grant"]
- :ghot ["ghot" "study"]
- :kudos ["kudos" "thank"]
- :daily ["daily"]
+ :revoke ["revoke" "dishonor"]
+ :grant ["grant" "honor"]
  :meme ["meme" "joke" "funny" "fun" "kek"]
  :memes ["https://i.kym-cdn.com/photos/images/newsfeed/001/323/114/d3c.jpg"
          "https://i.kym-cdn.com/photos/images/newsfeed/002/315/996/303.jpg"
@@ -53,11 +60,8 @@
  :add ["add" "give"]
  :remove ["remove"]
  :verify ["verify"]
- :hyd-role ; hyderabad role
- :goa-role ; goa role
- :pee-role ; pilani role
  :register ["register"]
- :score ["score"]
+ :leaderboard ["leaderboard"]
  :roll ["roll" "dice" "die"]
  :cry ["cry"]
  :nod ["nod"]
@@ -80,40 +84,73 @@
  :drink ["drink" "Drink" "DRINK" "slurp" "sip"]
  :pray ["pray" "bless"]
  :ver ["version" "edition"]
- :names ["Yui" "yui" "yuu" "Yuu" "YUI" "YUU"]
+ :names ["UEFI" "uefi" "yuifi" "Yui" "yui" "YUI" "yui?" "Yui?" "YUI?" "yui!" "Yui!" "YUI!"
+         "Yui." "yui." "YUI." "Yui," "yui," "YUI,"]
  :hello ["hi" "Hi" "hello" "Hello" "HELLO" "HI"]
  :bye ["bye" "Bye" "BYE" "goodbye" "Goodbye" "GOODBYE"]
  :say-bye ["Bye" "Goodbye" "Sayonara"]
  :say-hi ["Hi" "Hello" "Hey"]
- :privacy-string "We don't store any data except for kudos points."
+ :sub ["subscribe" "sub"]
+ :unsub ["unsubscribe" "unsub"]
+ :ping ["ping" "mention"]
+ :show ["show" "pic" "gallery"]
+ :privacy-string "We don't store any data"
  :help-string
  "```lisp
-┌────────────────────┐
-│                    │
-│▄▖ ▗▄       █       │
-│▐▙ ▟▌       ▀       │
-│ █▄█ ▐▌ ▐▌ ██       │
-│ ▝█▘ ▐▌ ▐▌  █       │
-│  █  ▐▌ ▐▌  █       │
-│  █  ▐▙▄█▌▗▄█▄▖  █  │
-│  ▀   ▀▀▝▘▝▀▀▀▘  ▀  │
-│                    │
-│                    │
-└────────────────────┘
+┌─────────────────────┐
+│                     │
+│m     m          \"   │
+│ \"m m\"  m   m  mmm   │
+│  \"#\"   #   #    #   │
+│   #    #   #    #   │
+│   #    \"mm\"#  mm#mm │
+│                     │
+│                     │
+└─────────────────────┘
+
 Commands:
  help
- pin
- grant
- revoke
- kill
+ yui
+ hello
+ bye
+ todo*
  say
- roll
- edit
- eat
- drink
- hi
+ search
+ show
+ disconnect*
+ pin
+ edit*
+ delete*
+ repl*
+ sub
+ ping
+ debt
+ settle
+ balance
+ kill
  caption
- sleep
+ roll
+ ghot
+ pain
+ predict
+ play
+ cry
+ fun-things-are-fun
+ meme
+ smug
+ shrug
+ will
+ who
+ nod
+ think
+ eat
+ pray
+ fuwa
+ drink
+ laugh
+ version
+ owo
+ uwu
 
  Written in Clojure by Average
 ```"}

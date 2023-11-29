@@ -1,0 +1,3 @@
+#+TITLE:Setting up the AI
+
+This bot makes use of text-generation-webui. To use the AI features, you'll first have to have a text-generation-webui server up and running with the --api flag added to the run command. Additionally, the "Yui" character template can be used, for which the user is expected to create one based on the Example.yaml present in the "characters" directory of text-generation-webui's root.

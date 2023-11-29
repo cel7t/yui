@@ -1,41 +1,220 @@
-(defn random-response [user]
-  (str (mention-user user) " " (rand-nth (:responses config)) \!))
+(defn random-response []
+  (str (rand-nth (:responses config))))
 
 (defn affirm []
   (str (rand-nth (:affirm config))))
 
-;; reminder
-;; coming soon!
+(defn unspace [str]
+  (s/replace str #" " "%20"))
 
 ;; is mod?
 (defn mod? [user-id]
-  (= user-id "")) ; admin user ID
+  (= user-id (:admin-id config)))
 
 (defmacro when-mod [user-id & body]
   (list 'if (mod? user-id)
         (cons 'do body)))
 
-;; store for spending kudos
+(defn search-ai [user-name mmap query]
+  (reply mmap
+         (str
+           (:content
+             (:message
+               (first
+                 (:choices
+                   (parse-string
+                     (:body
+                       (client/post "http://127.0.0.1:5000/v1/chat/completions"
+                                    {:form-params
+                                     {
+                                      :mode "chat"
+                                      :character "Yui"
+                                      :instruction_template "ChatML"
+                                      :messages [{:role "user"
+                                                  :content query}]
+                                      }
+                                     :content-type :json
+                                     :accept :json})) true))))))))
 
-;; serve food/drinks
 
-;; duckduckgo search
+(def search-engine "https://search.zeroish.xyz/api.php?q=")
+(def fallback-search-engine "https://searx.tuxcloud.net/search?q=")
 
 (defn search [query]
-  (:body (client/get (str "https://api.duckduckgo.com/?q=" query "&format=json&pretty=1") {:as :json})))
+  (or (:body (client/get (str search-engine query) {:as :json}))
+      (:body (client/get (str fallback-search-engine query) {:as :json}))))
+
+(defn search-image [query]
+  (or (:body (client/get (str search-engine query "&category_images=") {:as :json}))
+      (:body (client/get (str fallback-search-engine query "&t=1") {:as :json}))))
+
+(defn search-yt [query]
+  (:body (client/get (str "https://inv.tux.pizza/api/v1/search?q=" query "&pretty=1&fields=videoId,title") {:as :json})))
+
+(defn yui-image-search [ch-id query]
+  (if (not (nil? (re-find #"(?i)child" query)))
+    (prompt ch-id "This search query has been reported to the authorities. Please refrain from searching for illegal topics.")
+    (let [result (search-image query)]
+      (if (:thumbnail (first result))
+        (prompt ch-id (str (:thumbnail (first result))))
+        (prompt ch-id "No results found!")))))
+
+(defn yui-yt-search [ch-id query]
+  (if (not (nil? (re-find #"(?i)child" query)))
+    (prompt ch-id "This search query has been reported to the authorities. Please refrain from searching for illegal topics.")
+    (let [result (search-yt query)]
+      (if (:title (first result))
+        (and
+         (prompt ch-id (str "**Here's the video you requested:**\n" (:title (first result))))
+         (prompt ch-id (str "https://youtu.be/" (:videoId (first result)))))
+        (prompt ch-id "No results found!")))))
 
 (defn yui-search [ch-id query]
-  (let [result (search query)]
-    (if (not (= (:AbstractText result) ""))
-      (prompt ch-id (str "**From " (:AbstractSource result)
-                         ",**\n" (:AbstractText result)
-                         "\n" (:AbstractURL result)))
-      (let [extra-result (:Text (first (:RelatedTopics result)))]
-        (if extra-result
-          (prompt ch-id extra-result)
-          (prompt ch-id (str "No description found;\n")))))))
-;    (prompt ch-id (str "https://duckduckgo.com/"
-;                       (:Image result)))))
+  (if (not (nil? (re-find #"(?i)child" query)))
+    (prompt ch-id "This search query has been reported to the authorities. Please refrain from searching for illegal topics.")
+    (let [result (search query)]
+      (if (first result)
+        (if (:title (first result))
+          (prompt ch-id (str "**" (:title (first result)) "**\n"
+                             (:description (first result)) "\n"
+                             "\nFrom: " (unspace (:url (first result)))))
+          (prompt ch-id (str (:response (:special_response (first result))) "\n"
+                             "\nFrom: " (unspace (:source (:special_response (first result)))))))
+        (prompt ch-id "No results found!")))))
+
+(defn man-page [mmap cmd]
+  (let [qqq (:out (shell/sh "curl" "-s" (str "https://cht.sh/" (first cmd) "?qT&style=bw")))]
+    (reply mmap (subs qqq (s/index-of qqq "\n") (min (count qqq) 2000)))))
+
+;; reminders
+
+;; time.edn contains all our reminders in a map
+;; all reminders are sorted
+;; we have a function running every 10 minutes checking if any is in 10min range
+;; if it is, it creates an async fun that triggers a message when it's reached
+;; the bot then replies to the message creating the timer
+
+(def time-file "~/.yui/time.edn")
+
+(def yui-time-format (jtf/formatter "dd/MM/yyyy-HH:mm:ss"))
+
+(defn call-reminder [reminder]
+  (go
+    (println "Reminder Spawned.")
+    (let [secs (max 0
+                    (jt/as (jt/duration
+                             (jt/local-date-time)
+                             (jt/local-date-time "dd/MM/yyyy-HH:mm:ss" (first reminder))) :seconds))]
+      (println (format "Seconds left: %s" secs))
+      (<! (timeout (* secs 1000)))
+      (reply (first (next reminder))
+             (first (next (next reminder)))))))
+
+(defn ten-minute-check []
+  (let [next-10-min (jt/plus (jt/local-date-time)
+                             (jt/minutes 10))]
+    (println "Doing a ten-minute-check.")
+    (loop [remind []
+           timings (edn/read-string (slurp time-file))]
+      (if (first remind) (call-reminder (first remind)))
+      (if (and (first timings)
+               (jt/before? (jt/local-date-time
+                            "dd/MM/yyyy-HH:mm:ss" (first (first timings))) ; [(<time> messg reply-to ...) ...]
+                           (jt/local-date-time next-10-min)))
+        (recur (conj remind (first timings))
+               (next timings))
+        (binding [*print-length* -1]
+          (prn-str (spit time-file
+                         (or timings []))))))))
+
+(defn parse-duration [time-str]
+  ;; regex match
+  (loop [time (jt/local-date-time)
+         ent (s/split time-str #",")]
+    (println (format "Parsing Duration %s" (first ent)))
+    (if (and (first ent)
+             (re-matches #"(\w+)([hdms])" (first ent)))
+      (let [DUR ((fn [x] (cons (Integer/parseInt (first (next x)))
+                              (rest (rest x))))
+                 (re-matches #"(\w+)([hdms])" (first ent)))]
+        (case (first (next DUR))
+          "d"
+          (recur (jt/plus time (jt/days (first DUR)))
+                 (next ent))
+          "h"
+          (recur (jt/plus time (jt/hours (first DUR)))
+                 (next ent))
+          "m"
+          (recur (jt/plus time (jt/minutes (first DUR)))
+                 (next ent))
+          "s"
+          (recur (jt/plus time (jt/seconds (first DUR)))
+                 (next ent))
+          "ERROR"))
+      time)))
+
+(defn parse-date [time-str]
+  (println "Parsing Date")
+  (if (re-find #"-" time-str)
+    ;; full regex
+    (let [time-arr (re-matches #"(\d+)/(\d+)/?(\d+)?-(\d+):(\d+):?(\d+)?" time-str)
+          day (nth time-arr 1)
+          month (nth time-arr 2)
+          year (nth time-arr 3)
+          hour (nth time-arr 4)
+          minutes (nth time-arr 5)
+          seconds (nth time-arr 6)]
+      (jt/local-date-time (if year (Integer/parseInt year) 2023)
+                          (Integer/parseInt month)
+                          (Integer/parseInt day)
+                          (Integer/parseIntger/parseInt hour)
+                          (Integer/parseIntger/parseInt minutes)
+                          (if seconds (Integer/parseInt seconds) 0)))
+    (if (re-find #"/" time-str)
+      ;; date regex
+      (let [time-arr (re-matches #"(\d+)/(\d+)/?(\d+)?" time-str)
+            day (nth time-arr 1)
+            month (nth time-arr 2)
+            year (nth time-arr 3)]
+        (jt/local-date-time (if year (Integer/parseInt year) 2023)
+                            (Integer/parseInt month)
+                            (Integer/parseInt day)))
+      ;; time regex
+      (let [time-arr (re-matches #"(\d+):(\d+):?(\d+)?" time-str)
+            hour (nth time-arr 1)
+            minutes (nth time-arr 2)
+            seconds (nth time-arr 3)]
+        (jt/local-date-time (jt/as (jt/local-date-time) :year)
+                            (jt/as (jt/local-date-time) :month-of-year)
+                            (jt/as (jt/local-date-time) :day-of-month)
+                            (Integer/parseIntger/parseInt hour)
+                            (Integer/parseIntger/parseInt minutes)
+                            (if seconds (Integer/parseInt seconds) 0))))))
+
+(defn remind [in-or-at time-str text mmap]
+  (println "Triggered Reminder fn.")
+  (let [time (case in-or-at
+               in (parse-duration time-str)
+               at (parse-date time-str))]
+    (println "Finished Parsing Time String.")
+    (if (= time "ERROR")
+      (reply mmap "Bad reminder formatting. Use dd/mm[/yy][-]HH:mm[:ss] or n[d][h][m][s][,]")
+      (do
+        (println "Reading time-file...")
+        (reply mmap (str "Set reminder for " (jtf/format yui-time-format time))) 
+        (let [timings (edn/read-string (slurp time-file))]
+          (println "Read time-file.")
+          (binding [*print-length* -1]
+            (prn-str (spit time-file
+                           (sort
+                             #(jt/duration
+                                (jt/local-date-time "dd/MM/yyyy-HH:mm:ss" (first %))
+                                (jt/local-date-time "dd/MM/yyyy-HH:mm:ss" (first %)))
+                             (conj timings
+                                   [(jtf/format yui-time-format time) ; exact time
+                                    mmap ; replying to
+                                    text])))))) ; message
+        (ten-minute-check)))))
 
 ;; eval code
 
@@ -55,15 +234,28 @@
    (prompt ch-id "https://tenor.com/view/girl-waiting-anime-chill-rolling-gif-15974128"))
   ([ch-id die number]
    (let [die-roll-values (repeatedly die #(inc (rand-int number)))]
-   (prompt ch-id (str ":game_die: You rolled a " (reduce #'+ die-roll-values) "! :game_die:"))
-   (prompt ch-id (str "individual values are " (pr-str die-roll-values)))
-   (prompt ch-id "https://tenor.com/view/girl-waiting-anime-chill-rolling-gif-15974128"))))
+     (prompt ch-id (str ":game_die: You rolled a " (reduce #'+ die-roll-values) "! :game_die:"))
+     (prompt ch-id (str "individual values are " (pr-str die-roll-values)))
+     (prompt ch-id "https://tenor.com/view/girl-waiting-anime-chill-rolling-gif-15974128"))))
 
 (defn pain [ch-id]
   (prompt ch-id "https://tenor.com/view/k-on-yui-hirasawa-pain-gif-23894830"))
 
-(defn ghot [ch-id]
-  (prompt ch-id "https://tenor.com/view/k-on-yui-studying-homework-anime-gif-16480285"))
+(defn random-gif [mmap]
+  (let [gif-file (edn/read-string (slurp "~/.yui/gifs.edn"))]
+    (reply mmap (rand-nth (:gifs gif-file)))))
+
+(defn add-gif [mmap file]
+  (let [gif-file (edn/read-string (slurp "~/.yui/gifs.edn"))]
+    (if (not (belongs (:url file) (:gifs gif-file)))
+      (and
+       (spit "~/.yui/gifs.edn"
+             (binding [*print-length* -1] (prn-str (assoc-in gif-file 
+                                                             [(keyword "gifs")] 
+                                                             (concat ((keyword "gifs") gif-file)
+                                                                     [(:url file)])))))
+       (reply mmap "Added file to collection!"))
+      (reply mmap "That file already exists in the collection! BAKA!!"))))
 
 (defn predict [ch-id]
   (prompt ch-id (str "My calculations say the chances are **" (rand-int 101) "%**.")))
@@ -73,27 +265,10 @@
 
 (defn add-todo [ch-id text]
   (prompt (:todo-channel config) text)
-  (prompt ch-id (str \" text \" "was added to TODO!")))
+  (prompt ch-id (str \" text \" " was added to TODO!")))
 
-;; TODO: test it out!
-;; also add :new, :old and :all roles
-;; (defn announce [ch-id text]
-;;   (let [ann (cdr (cdr text))
-;;         ann-txt (if (re-find #"(?i)tt" (car ann))
-;;                   (cdr ann) ann)
-;;         grp (car (cdr text))]
-;;     (prompt ch-id ; 927956576680173570
-;;             (str
-;;               (case (subs grp 0 3)
-;;                  "new" (mention-role (:new (:roles config)))
-;;                  "old" (mention-role (:old (:roles config)))
-;;                  "all" (mention-role (:all (:roles config)))
-;;                  "eve" (mention-role (:all (:roles config)))
-;;                  "")
-;;               ann-txt))))
-
-(defn say-hi [ch-id user]
-  (prompt ch-id (str (rand-nth (:say-hi config)) ", " (mention-user user) \!)))
+(defn say-hi []
+  (str (rand-nth (:say-hi config))))
 
 (defn say-bye [ch-id user]
   (prompt ch-id (str (rand-nth (:say-bye config)) ", " (mention-user user) \!)))
@@ -112,117 +287,11 @@
 
 (defn grant-membership [ch-id guild mention]
   (m/add-guild-member-role! (:rest @state) guild (:id mention) (:member-role config))
-  (prompt ch-id (str "Welcome to the ghot club, " (mention-user mention) \!)))
+  (prompt ch-id (str "Welcome to the server, " (mention-user mention) \!)))
 
-(defn grant-role [ch-id guild author role role-name]
-  (m/add-guild-member-role! (:rest @state) guild (:id author) role)
-  (prompt ch-id (str "You were given the " role-name " role!")))
-
-(defn remove-role [ch-id guild author role role-name]
-  (m/remove-guild-member-role! (:rest @state) guild (:id author) role)
-  (prompt ch-id (str role-name " role was removed!")))
-
-(defn register [ch-id author]
-  (let [score-message (car @(m/get-pinned-messages! (:rest @state) 944508939435917333))
-        score (tokenize (:content score-message))]
-    (if (not (belongs (:id author) score))
-      (do
-        (m/edit-message! (:rest @state)
-                         944508939435917333
-                         944600368766132234
-                         :content
-                         (s/join " "
-                                 (conj score
-                                       (:id author)
-                                       (str 0))))
-        (let [daily-message (car @(m/get-pinned-messages! (:rest @state) 944511119098261504))
-              dailies (tokenize (:content daily-message))]
-          (m/edit-message! (:rest @state)
-                           944511119098261504
-                           944615057906610297
-                           :content
-                           (s/join " "
-                                   (conj dailies
-                                         (:id author)
-                                         (str 0)))))
-        (prompt ch-id "Registration successful. Type `yui daily` to get daily kudos!"))
-      (prompt ch-id "Already registered."))))
-
-(defn kudos [ch-id author mention] ; TODO: add optional clause for nicknames, they're contained in :member
-  ;; get person giving kudos
-  ;; get score of person giving kudos
-  ;; get person getting kudos
-  ;; add 1 kudos to person getting kudos
-  ;; subtract 1 kudos from person giving kudos
-  (let [score-message (car @(m/get-pinned-messages! (:rest @state) 944508939435917333))
-        score (tokenize (:content score-message))]
-    (if (and (belongs (:id author) score)
-             (belongs (:id mention) score)) ;; IDs are much larger than feasible scores
-      (do (m/edit-message! (:rest @state)
-                           944508939435917333
-                           944600368766132234
-                           :content
-                           (s/join " "
-                                   (update
-                                     (update score
-                                             (inc (.indexOf score (:id author)))
-                                             #(str (dec (Integer/parseInt %))))
-                                     (inc (.indexOf score (:id mention)))
-                                     #(str (inc (Integer/parseInt %))))))
-          (prompt ch-id (str (if (:nick mention)
-                               (:nick mention)
-                               (:username mention))
-                             " was given kudos by "
-                             (if (:nick author)
-                               (:nick author)
-                               (:username author)))))
-      (do
-        (prompt ch-id "Not registered, registering...")
-        (register ch-id mention)
-        (register ch-id author)
-        (kudos ch-id author mention)))))
-
-(defn check-score [user n] ; codes: 0 - not reg, 1 - not enough, 2 - sufficient
-  (let [score-message (car @(m/get-pinned-messages! (:rest @state) 944508939435917333))
-        score (tokenize (:content score-message))]
-    (if (belongs (:id user) score)
-      (if (<= n
-              (nth score (inc (.indexOf score (:id user)))))
-        2
-        1)
-      0)))
-
-(defn user-score [ch-id user]
-  (let [score-message (car @(m/get-pinned-messages! (:rest @state) 944508939435917333))
-        score (tokenize (:content score-message))]
-    (if (belongs (:id user) score)
-      (prompt ch-id (str (if (:nick user)
-                           (:nick user)
-                           (:username user))
-                         " has "
-                         (nth score (inc (.indexOf score (:id user))))
-                         " kudos."))
-      (do
-        (prompt ch-id "Not registered, registering...")
-        (register ch-id user)
-        (user-score ch-id user)))))
-
-(defn give-kudos [ch-id n user]
-  (let [score-message (car @(m/get-pinned-messages! (:rest @state) 944508939435917333))
-        score (tokenize (:content score-message))]
-    (if (belongs (:id user) score)
-      (m/edit-message! (:rest @state)
-                       944508939435917333
-                       944600368766132234
-                       :content
-                       (s/join " "
-                               (update score
-                                       (inc (.indexOf score (:id user)))
-                                       #(str (+ n (Integer/parseInt %))))))
-      (do
-        (prompt ch-id "Not registered, registering...")
-        (register ch-id user)
-        (give-kudos ch-id n user)))))
+(defn associated-key [user]
+  (let [keyword-file (edn/read-string (slurp "keys.edn"))]
+    ((keyword (str (:id user))) keyword-file)))
 
 (defn caption [ch-id file ctext]
   (clojure.java.io/copy
@@ -231,44 +300,194 @@
   (prompt ch-id "Processing...")
   (let [width (Integer/parseInt (:out (apply shell/sh (tokenize "identify -format %w /tmp/img"))))
         fmt (s/lower-case (:out (apply shell/sh (tokenize "identify -format %m /tmp/img"))))]
-    (apply shell/sh (concat (tokenize (str "bash -c convert /tmp/img -background none -font 'Upright' -fill white -stroke black -strokewidth " (int (/ width 200)) " -size " width "x" (int (/ width 2)) " -gravity center"))
-                            (list (str "caption:" ctext))
-                            (tokenize (str "-composite /tmp/img." fmt))))
+    (let [answer (:out (apply shell/sh (concat (tokenize (str "convert /tmp/img -background none -font Upright -fill white -stroke black -strokewidth " (int (/ width 200)) " -size " width "x" (int (/ width 2)) " -gravity center"))
+                                               (list (str "caption:" ctext))
+                                               (tokenize (str "-composite /tmp/img." fmt)))))]
+      (prompt ch-id "Processing done!"))
     (m/create-message! (:rest @state) ch-id :file (java.io.File. (str "/tmp/img." fmt)))))
 
-(defn daily [ch-id author]
-  ;; check redeemed list
-  ;; if last-redeemed != today
-  ;; add 4 kudos to author
-  (let [zone-id "Asia/Calcutta"
-        today (t/day
-                (.toLocalDate
-                  (t/to-time-zone
-                    (t/now)
-                    (t/time-zone-for-id zone-id))))]
-    (let [daily-message (car @(m/get-pinned-messages! (:rest @state) 944511119098261504))
-          dailies (tokenize (:content daily-message))]
-      (if (belongs (:id author) dailies) ;; IDs are much larger than days (1-31)
-        (if (not (= (nth dailies
-                         (inc (.indexOf dailies (:id author))))
-                    (str today)))
+(defn subscribe [mmap author msg]
+  (let [sub-file (edn/read-string (slurp "~/.yui/subs.edn"))]
+    ;; yui sub create name
+    ;; -> creates sub group
+    (if (= (first msg) "create")
+      (if (not (first (next msg)))
+        (reply mmap "Enter a name for the new group!")
+      (let [group-name (apply str (re-seq #"\w" (first (next msg))))]
+        (if ((keyword group-name) sub-file)
+          (reply mmap "A sub group with the same name already exists!")
           (do
-            (m/edit-message! (:rest @state)
-                             944511119098261504
-                             944615057906610297
-                             :content
-                             (s/join " "
-                                     (update dailies
-                                             (inc (.indexOf dailies (:id author)))
-                                             (fn [x] (str today)))))
-            (give-kudos ch-id 4 author)
-            (prompt ch-id "You got **4 kudos**!"))
-          (prompt ch-id "You have already redeemed your daily kudos!"))
-        (do
-          (prompt ch-id "Not registered, registering...")
-          (register ch-id author)
-          (daily ch-id author))))))
+            (spit "~/.yui/subs.edn"
+                  (binding [*print-length* -1] (prn-str (assoc-in sub-file 
+                                                                  [(keyword group-name)]
+                                                                  (list (:id author))))))
+            (reply mmap "Sub group created!")))))
+      ;; yui sub name
+      ;; -> joins sub group
+      (let [group-name (apply str (re-seq #"\w" (first msg)))]
+        (spit "~/.yui/subs.edn"
+              (binding [*print-length* -1] (prn-str (assoc-in sub-file 
+                                                              [(keyword group-name)] 
+                                                              (concat ((keyword group-name) sub-file)
+                                                                      [(:id author)])))))
+        (reply mmap (str "Joined the sub group " group-name))))))
 
+(defn unsubscribe [ch-id msg]) ;; TODO
+
+(defn sub-ping [mmap msg]
+  (let [sub-file (edn/read-string (slurp "~/.yui/subs.edn"))]
+    ;; yui ping name
+    ;; pings sub group
+    (let [group-name (apply str (re-seq #"\w" msg))]
+      (if (not ((keyword group-name) sub-file))
+        (reply mmap "Sub group does not exist!")
+        (reply mmap (detokenize (mapv mention-user ((keyword group-name) sub-file))))))))
+
+
+(defn image-name [img]
+  (let [image-file (edn/read-string (slurp "~/.yui/images.edn"))]
+    ((keyword img) image-file)))
+
+(defn image-listing [mmap]
+  (let [image-file (edn/read-string (slurp "~/.yui/images.edn"))]
+    (reply mmap (s/join ", " (map (fn [str] (s/replace str #"-" " "))
+                                    (next (s/split (apply str (keys image-file)) #":")))))))
+
+(defn counter-add [ch-id f-author]
+  (let [author (:id f-author)
+        score (edn/read-string (slurp "~/.yui/score.edn"))]
+    (if (not ((keyword author) score))
+      (spit "~/.yui/score.edn"
+            (binding [*print-length* -1] (prn-str (assoc-in score
+                                                            [(keyword author)] 
+                                                            1))))
+      (let* [count (inc ((keyword author) score))
+             new-score (assoc-in score
+                                 [(keyword author)] 
+                                 count)]
+        (spit "~/.yui/score.edn"
+              (binding [*print-length* -1] (prn-str new-score)))))))
+
+(defn leaderboard [ch-id gd-id]
+  (def number (atom 0))
+  (let [score (edn/read-string (slurp "~/.yui/score.edn"))]
+    (prompt ch-id
+            (str "# POGGERS LEADERBOARD\n"
+                 (apply str
+                        (map (fn [[user-id val]]
+                               (let* [user (m/get-user! (:rest @state)
+                                                        (Long/parseLong (subs (str user-id) 1)))
+                                      name (:username @user)]
+                                 (if (not (s/blank? name))
+                                   (str (swap! number inc) ". " name ": " val "\n"))))
+                             (into (sorted-map-by
+                                    (fn [key1 key2]
+                                      (<= (key2 score)
+                                          (key1 score))))
+                                   score)))))))
+  
+;; loop over it with get-guild-member! 
+
+(defn balance [ch-id f-author f-mention]
+  (let* [author (:id f-author)
+         mention (:id f-mention)
+         cash-file (edn/read-string (slurp "~/.yui/cash.edn"))
+         amt (- (or ((keyword mention) ((keyword author) cash-file)) 0)
+                (or ((keyword author) ((keyword mention) cash-file)) 0))]
+    (cond
+      (> amt 0) (prompt ch-id (str "Current balance is: you owe " amt " YuiCoin:tm: to " (:username f-mention)))
+      (< amt 0) (prompt ch-id (str "Current balance is: " (:username f-mention) " owes you " amt " YuiCoin:tm:"))
+      (= amt 0) (prompt ch-id (str "Current balance is 0! No debts!")))))
+
+
+(defn settle [ch-id f-author f-mention amount]
+  (let [author (:id f-author)
+        mention (:id f-mention)
+        cash-file (edn/read-string (slurp "~/.yui/cash.edn"))]
+    (if (not (every? #(Character/isDigit %) amount))
+      (prompt ch-id "Format: yui settle <int> @mention")
+      (let [amt (* -1 (Integer/parseInt amount))]
+        (prompt ch-id (str "Amount paid is: " (* -1 amt) " by " (:username f-mention) " to " (:username f-author)))
+        (if (or (not ((keyword mention) cash-file))
+                (not ((keyword author) ((keyword mention) cash-file))))
+          (spit "~/.yui/cash.edn"
+                (binding [*print-length* -1] (prn-str (assoc-in cash-file 
+                                                                [(keyword mention) (keyword author)] 
+                                                                amt))))
+          (spit "~/.yui/cash.edn"
+                (binding [*print-length* -1] (prn-str (assoc-in cash-file 
+                                                                [(keyword mention) (keyword author)] 
+                                                                (+ ((keyword author) 
+                                                                    ((keyword mention) cash-file))
+                                                                   amt))))))
+        (balance ch-id f-author f-mention)))))
+
+(defn debt [ch-id f-author f-mention amount]
+  (let [author (:id f-author)
+        mention (:id f-mention)
+        cash-file (edn/read-string (slurp "~/.yui/cash.edn"))]
+    (if (not (every? #(Character/isDigit %) amount))
+      (prompt ch-id "Format: yui iou <positive int> @mention")
+      (let [amt (Integer/parseInt amount)]
+        (prompt ch-id (str "Amount owed is: " amt " by " (:username f-author) " to " (:username f-mention)))
+        (if (not ((keyword mention) ((keyword author) cash-file)))
+          (spit "~/.yui/cash.edn"
+                (binding [*print-length* -1] (prn-str (assoc-in cash-file 
+                                                                [(keyword author) (keyword mention)] 
+                                                                amt))))
+          (spit "~/.yui/cash.edn"
+                (binding [*print-length* -1] (prn-str (assoc-in cash-file 
+                                                                [(keyword author) (keyword mention)] 
+                                                                (+ amt
+                                                                   ((keyword mention) 
+                                                                    ((keyword author) cash-file))))))))
+        (prompt ch-id "Debt entry made! Enjoy wageslaving~")
+        (balance ch-id f-author f-mention)))))
+
+
+(defn add-image [mmap key-name file]
+  (let [image-file (edn/read-string (slurp "~/.yui/images.edn"))]
+    (if (not ((keyword key-name) image-file))
+      (let* [stamp (str (quot (System/currentTimeMillis) 1000))
+             image (clojure.java.io/copy
+                     (:body (client/get (str (:url file)) {:as :stream}))
+                     (java.io.File. (str "~/.yui/file_" stamp)))
+             fmt (s/lower-case (s/trim-newline (first (s/split (:out (apply shell/sh (tokenize (str "file -b --extension ~/.yui/file_" stamp)))) #"/"))))
+             final-image (:out (apply shell/sh 
+                                      (tokenize 
+                                        (str "mv ~/.yui/file_" stamp 
+                                             " ~/.yui/file_" stamp "." fmt))))]
+        (spit "~/.yui/images.edn"
+              (binding [*print-length* -1] (prn-str (merge image-file 
+                                                           {(keyword key-name) 
+                                                            (str "file_" stamp "." fmt)}))))
+        (reply mmap "Keyword registered with the given file!"))
+      (reply mmap "Keyword already exists!"))))
+
+(defn update-image [mmap key-name file]
+  (let [image-file (edn/read-string (slurp "~/.yui/images.edn"))]
+    (if ((keyword key-name) image-file)
+      (let* [stamp (str (quot (System/currentTimeMillis) 1000))
+             image (clojure.java.io/copy
+                     (:body (client/get (str (:url file)) {:as :stream}))
+                     (java.io.File. (str "~/.yui/file_" stamp)))
+             fmt (s/lower-case (s/trim-newline (first (s/split (:out (apply shell/sh (tokenize (str "file -b --extension ~/.yui/file_" stamp)))) #"/"))))
+             final-image (:out (apply shell/sh 
+                                      (tokenize 
+                                        (str "mv ~/.yui/file_" stamp 
+                                             " ~/.yui/file_" stamp "." fmt))))]
+        (spit "~/.yui/images.edn"
+              (binding [*print-length* -1] (prn-str (merge image-file 
+                                                           {(keyword key-name) 
+                                                            (str "file_" stamp "." fmt)}))))
+        (reply mmap "Keyword updated with the given file!"))
+      (reply mmap "Keyword does not exist!"))))
+
+(defn yui-show [mmap img]
+  (m/create-message! (:rest @state)
+                     (:channel_id mmap)
+                     :message-reference mmap
+                     :file (java.io.File. (str "~/.yui/" (image-name img)))))
 
 (defn pin-message [ch-id ref-msg] ;; broken
   (if ref-msg

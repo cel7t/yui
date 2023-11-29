@@ -1,0 +1,10 @@
+#+TITLE:Setup
+* config.edn
+The very first thing users should set up is the config.edn in the root of this folder. There are detailed explanations of what each configurable entry is for in the file itself.
+
+* ~/.yui
+It is necessary to have a folder called ".yui" at the home directory of the account you are using to run yui. This is where the media and scores are stored.
+
+* AI capabilities
+Please see [[file:AI-SETUP.org]] for more information.
+
